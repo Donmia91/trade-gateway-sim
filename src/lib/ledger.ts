@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { getDb } from "./db";
 import { nowMs } from "./time";
 
@@ -96,4 +97,101 @@ export function getSnapshots(options: { limit?: number; sinceTs?: number }): Sna
   params.push(limit);
   const rows = db.prepare(sql).all(...params) as SnapshotRow[];
   return rows.reverse();
+}
+
+// --- USD balance & sweep (EOD run_id = eod_runs.id) ---
+
+export async function ensureBalance(currency: string): Promise<void> {
+  const db = getDb();
+  const row = db.prepare("SELECT 1 FROM balances WHERE currency = ?").get(currency);
+  if (!row) {
+    db.prepare("INSERT INTO balances (currency, amount) VALUES (?, 0)").run(currency);
+  }
+}
+
+export async function getBalance(currency: string): Promise<number> {
+  const db = getDb();
+  const row = db.prepare("SELECT amount FROM balances WHERE currency = ?").get(currency) as
+    | { amount: number }
+    | undefined;
+  return row?.amount ?? 0;
+}
+
+export interface LedgerEntryInput {
+  id?: string;
+  run_id: string;
+  ts?: string;
+  type: string;
+  currency: string;
+  delta: number;
+  note?: string | null;
+}
+
+export async function addLedgerEntry(entry: LedgerEntryInput): Promise<void> {
+  const db = getDb();
+  const id = entry.id ?? randomUUID();
+  const ts = entry.ts ?? new Date().toISOString();
+  db.prepare(
+    `INSERT INTO ledger_entries (id, run_id, ts, type, currency, delta, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    entry.run_id,
+    ts,
+    entry.type,
+    entry.currency,
+    entry.delta,
+    entry.note ?? null
+  );
+}
+
+export interface SweepResult {
+  before: number;
+  after: number;
+  swept: number;
+}
+
+export interface LedgerEntryRow {
+  id: string;
+  run_id: string;
+  ts: string;
+  type: string;
+  currency: string;
+  delta: number;
+  note: string | null;
+}
+
+export async function getLedgerEntries(limit = 100): Promise<LedgerEntryRow[]> {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      "SELECT id, run_id, ts, type, currency, delta, note FROM ledger_entries ORDER BY ts DESC LIMIT ?"
+    )
+    .all(Math.min(limit, 500)) as LedgerEntryRow[];
+  return rows;
+}
+
+export async function applySweep(
+  runId: string,
+  realizedPnlUsd: number
+): Promise<SweepResult> {
+  await ensureBalance("USD");
+  const before = await getBalance("USD");
+  if (realizedPnlUsd <= 0) {
+    return { before, after: before, swept: 0 };
+  }
+  await addLedgerEntry({
+    run_id: runId,
+    type: "SWEEP_TO_USD",
+    currency: "USD",
+    delta: realizedPnlUsd,
+    note: `EOD sweep run ${runId}`,
+  });
+  const db = getDb();
+  db.prepare("UPDATE balances SET amount = amount + ? WHERE currency = ?").run(
+    realizedPnlUsd,
+    "USD"
+  );
+  const after = await getBalance("USD");
+  return { before, after, swept: realizedPnlUsd };
 }

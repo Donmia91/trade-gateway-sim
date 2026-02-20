@@ -6,19 +6,21 @@ let db: ReturnType<typeof Database> | null = null;
 
 function getDbPath(): string {
   const p = config.DB_PATH;
-  if (path.isAbsolute(p)) return p;
+  if (p === ":memory:" || path.isAbsolute(p)) return p;
   return path.join(process.cwd(), p);
 }
 
 export function getDb(): Database.Database {
   if (!db) {
     const dbPath = getDbPath();
-    const dir = path.dirname(dbPath);
-    try {
-      const fs = require("fs");
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    } catch {
-      // ignore
+    if (dbPath !== ":memory:") {
+      const dir = path.dirname(dbPath);
+      try {
+        const fs = require("fs");
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      } catch {
+        // ignore
+      }
     }
     db = new Database(dbPath);
     db.exec(`
@@ -70,6 +72,20 @@ export function getDb(): Database.Database {
         ts TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_eod_events_run_id ON eod_events(run_id);
+      CREATE TABLE IF NOT EXISTS balances (
+        currency TEXT PRIMARY KEY,
+        amount REAL NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS ledger_entries (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        ts TEXT NOT NULL,
+        type TEXT NOT NULL,
+        currency TEXT NOT NULL,
+        delta REAL NOT NULL,
+        note TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_ledger_entries_run_id ON ledger_entries(run_id);
     `);
   }
   return db;

@@ -51,3 +51,32 @@ export function insertEodEvent(
     "INSERT INTO eod_events (run_id, level, message, ts) VALUES (?, ?, ?, ?)"
   ).run(run_id, level, message, t);
 }
+
+export interface EodRunRow {
+  id: string;
+  started_at: string;
+  git_sha: string | null;
+  seed: number | null;
+  config_json: string;
+  node_version: string;
+  status: string;
+}
+
+export function getEodRuns(limit: number): EodRunRow[] {
+  const db = getDb();
+  return db
+    .prepare(
+      "SELECT id, started_at, git_sha, seed, config_json, node_version, status FROM eod_runs ORDER BY started_at DESC LIMIT ?"
+    )
+    .all(Math.min(limit, 100)) as EodRunRow[];
+}
+
+export function getEodMetrics(run_id: string): Record<string, number> {
+  const db = getDb();
+  const rows = db
+    .prepare("SELECT key, value FROM eod_metrics WHERE run_id = ?")
+    .all(run_id) as Array<{ key: string; value: number }>;
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.key] = r.value;
+  return out;
+}

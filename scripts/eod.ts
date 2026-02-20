@@ -122,6 +122,12 @@ async function main(): Promise<void> {
   insertEodMetric(runId, "realized_pnl_usd", realized_pnl_usd);
   insertEodMetric(runId, "error_count", errorCount);
 
+  const { applySweep } = await import("../src/lib/ledger");
+  const sweep = await applySweep(runId, realized_pnl_usd);
+  insertEodMetric(runId, "usd_balance_before", sweep.before);
+  insertEodMetric(runId, "usd_balance_after", sweep.after);
+  insertEodMetric(runId, "swept_to_usd", sweep.swept);
+
   const gatesPath = path.join(process.cwd(), OPS_GATES_PATH);
   const gatesConfig = fs.existsSync(gatesPath)
     ? loadJson<OpsGates>(gatesPath)
@@ -150,6 +156,9 @@ async function main(): Promise<void> {
       trade_count,
       realized_pnl_usd,
       error_count: errorCount,
+      usd_balance_before: sweep.before,
+      usd_balance_after: sweep.after,
+      swept_to_usd: sweep.swept,
     },
     gates: {
       error_count_ok: gateErrorOk,
@@ -179,6 +188,9 @@ async function main(): Promise<void> {
     `- trade_count: ${trade_count}`,
     `- realized_pnl_usd: ${realized_pnl_usd}`,
     `- error_count: ${errorCount}`,
+    `- usd_balance_before: ${sweep.before}`,
+    `- usd_balance_after: ${sweep.after}`,
+    `- swept_to_usd: ${sweep.swept}`,
     "",
     "## Gates",
     `- error_count === 0: ${gateErrorOk ? "✓" : "✗"}`,
