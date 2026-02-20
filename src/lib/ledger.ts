@@ -103,10 +103,7 @@ export function getSnapshots(options: { limit?: number; sinceTs?: number }): Sna
 
 export async function ensureBalance(currency: string): Promise<void> {
   const db = getDb();
-  const row = db.prepare("SELECT 1 FROM balances WHERE currency = ?").get(currency);
-  if (!row) {
-    db.prepare("INSERT INTO balances (currency, amount) VALUES (?, 0)").run(currency);
-  }
+  db.prepare("INSERT OR IGNORE INTO balances (currency, amount) VALUES (?, 0)").run(currency);
 }
 
 export async function getBalance(currency: string): Promise<number> {
@@ -177,21 +174,20 @@ export async function applySweep(
 ): Promise<SweepResult> {
   await ensureBalance("USD");
   const before = await getBalance("USD");
-  if (realizedPnlUsd <= 0) {
+  if (!(Number.isFinite(realizedPnlUsd) && realizedPnlUsd > 0)) {
     return { before, after: before, swept: 0 };
   }
-  await addLedgerEntry({
-    run_id: runId,
-    type: "SWEEP_TO_USD",
-    currency: "USD",
-    delta: realizedPnlUsd,
-    note: `EOD sweep run ${runId}`,
-  });
   const db = getDb();
-  db.prepare("UPDATE balances SET amount = amount + ? WHERE currency = ?").run(
-    realizedPnlUsd,
-    "USD"
-  );
-  const after = await getBalance("USD");
+  const tx = db.transaction((rid: string, delta: number) => {
+    const id = randomUUID();
+    const ts = new Date().toISOString();
+    const note = `EOD sweep run ${rid}`;
+    db.prepare(
+      "INSERT INTO ledger_entries (id, run_id, ts, type, currency, delta, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(id, rid, ts, "SWEEP_TO_USD", "USD", delta, note);
+    db.prepare("UPDATE balances SET amount = amount + ? WHERE currency = ?").run(delta, "USD");
+  });
+  tx(runId, realizedPnlUsd);
+  const after = before + realizedPnlUsd;
   return { before, after, swept: realizedPnlUsd };
 }
