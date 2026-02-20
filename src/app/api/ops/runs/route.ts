@@ -4,11 +4,11 @@ import { getEodRuns, getEodMetrics } from "@/lib/eodDb";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(
-      Math.max(1, parseInt(searchParams.get("limit") ?? "10", 10)),
-      100
-    );
-    const runs = getEodRuns(limit);
+    const raw = searchParams.get("limit");
+    const n = Number(raw);
+    const limit = Number.isFinite(n) ? n : 10;
+    const clamped = Math.min(Math.max(1, Math.floor(limit)), 100);
+    const runs = getEodRuns(clamped);
     const out = runs.map((r) => {
       const m = getEodMetrics(r.id);
       return {
