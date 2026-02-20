@@ -149,9 +149,11 @@ async function main(): Promise<void> {
   insertEodMetric(runId, "equity_delta_usd", equity_delta_usd);
   insertEodMetric(runId, "unrealized_pnl_usd", unrealized_pnl_usd);
   insertEodMetric(runId, "total_fees_usd", total_fees_usd);
+  insertEodMetric(runId, "fees_usd", total_fees_usd);
   insertEodMetric(runId, "error_count", errorCount);
 
-  const { applySweep } = await import("../src/lib/ledger");
+  const { applySweep, addFee } = await import("../src/lib/ledger");
+  await addFee(runId, total_fees_usd, `Kraken fees for run ${runId}`);
   const sweep = await applySweep(runId, realized_pnl_usd);
   insertEodMetric(runId, "usd_balance_before", sweep.before);
   insertEodMetric(runId, "usd_balance_after", sweep.after);
@@ -187,8 +189,9 @@ async function main(): Promise<void> {
     metrics: {
       trade_count,
       realized_pnl_usd,
-      equity_delta_usd,
       unrealized_pnl_usd,
+      fees_usd: total_fees_usd,
+      equity_delta_usd,
       total_fees_usd,
       pnl_usd_is_equity_delta: true,
       error_count: errorCount,
@@ -245,9 +248,10 @@ async function main(): Promise<void> {
   const { getEvents } = await import("../src/lib/ledger");
   const events = getEvents(2000);
   const filled = events.filter((e) => e.type === "ORDER_FILLED");
-  const csvRows: string[] = ["ts,orderId,pair,side,qty,px,fee_usd"];
+  const csvRows: string[] = ["ts,orderId,pair,side,qty,px,fee_usd,maker_taker"];
   for (const e of filled) {
-    const d = e.data as { ts?: number; orderId?: string; pair?: string; side?: string; qty?: number; px?: number; feeUsd?: number };
+    const d = e.data as { ts?: number; orderId?: string; pair?: string; side?: string; qty?: number; px?: number; feeUsd?: number; isMaker?: boolean };
+    const makerTaker = d?.isMaker === true ? "maker" : "taker";
     csvRows.push(
       [
         d?.ts ?? "",
@@ -257,6 +261,7 @@ async function main(): Promise<void> {
         d?.qty ?? "",
         d?.px ?? "",
         d?.feeUsd ?? "",
+        makerTaker,
       ].join(",")
     );
   }

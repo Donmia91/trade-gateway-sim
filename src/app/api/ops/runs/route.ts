@@ -19,6 +19,7 @@ export async function GET(request: Request) {
         pnl_usd: m.realized_pnl_usd ?? 0,
         trades: m.trade_count ?? 0,
         errors: m.error_count ?? 0,
+        fees_usd: m.fees_usd ?? m.total_fees_usd ?? 0,
         swept_to_usd: m.swept_to_usd ?? 0,
         usd_balance_after: m.usd_balance_after ?? 0,
       };

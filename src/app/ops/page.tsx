@@ -16,6 +16,7 @@ interface RunRow {
   pnl_usd: number;
   trades: number;
   errors: number;
+  fees_usd: number;
   swept_to_usd: number;
   usd_balance_after: number;
 }
@@ -92,6 +93,7 @@ export default function OpsPage() {
                           <th>PnL (USD)</th>
                           <th>Trades</th>
                           <th>Errors</th>
+                          <th>Fees</th>
                           <th>Swept to USD</th>
                           <th>USD after</th>
                         </tr>
@@ -99,7 +101,7 @@ export default function OpsPage() {
                       <tbody>
                         {runs.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="muted">
+                            <td colSpan={8} className="muted">
                               No EOD runs yet. Run <code>pnpm eod:smoke</code> or{" "}
                               <code>pnpm eod</code>.
                             </td>
@@ -116,6 +118,7 @@ export default function OpsPage() {
                               <td>${r.pnl_usd.toFixed(2)}</td>
                               <td>{r.trades}</td>
                               <td>{r.errors}</td>
+                              <td>${r.fees_usd.toFixed(2)}</td>
                               <td>${r.swept_to_usd.toFixed(2)}</td>
                               <td>${r.usd_balance_after.toFixed(2)}</td>
                             </tr>

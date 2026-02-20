@@ -19,6 +19,8 @@ export interface Fill {
   qty: number;
   px: number;
   feeUsd: number;
+  /** True when limit order added liquidity (did not cross); false for market or crossing limit. */
+  isMaker?: boolean;
   ts: number;
 }
 

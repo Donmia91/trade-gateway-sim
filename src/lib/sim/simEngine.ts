@@ -42,6 +42,7 @@ function applyFillsToPositionAndPnl(): void {
       qty: f.qty,
       px: f.px,
       feeUsd: f.feeUsd,
+      isMaker: f.isMaker,
       ts: f.ts,
     });
     if (f.side === "buy") {

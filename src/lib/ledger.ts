@@ -142,6 +142,23 @@ export async function addLedgerEntry(entry: LedgerEntryInput): Promise<void> {
   );
 }
 
+/** Record a fee as a ledger entry (type FEE_USD, delta negative). */
+export async function addFee(
+  runId: string,
+  feeUsd: number,
+  note?: string
+): Promise<void> {
+  const value = Number.isFinite(feeUsd) ? feeUsd : 0;
+  if (value <= 0) return;
+  await addLedgerEntry({
+    run_id: runId,
+    type: "FEE_USD",
+    currency: "USD",
+    delta: -value,
+    note: note ?? `Kraken fees for run ${runId}`,
+  });
+}
+
 export interface SweepResult {
   before: number;
   after: number;
