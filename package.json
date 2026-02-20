@@ -16,7 +16,7 @@
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "eod": "tsx scripts/eod.ts --config configs/daily.json",
-    "eod:smoke": "tsx scripts/eod.ts --config configs/smoke.json",
+    "eod:smoke": "tsx scripts/eod.ts --config configs/smoke.json --gates configs/ops-gates-smoke.json",
     "eod:ci": "tsx scripts/eod.ts --config configs/daily.json --ci",
     "test:sweep": "tsx tests/sweep.test.ts"
   },
