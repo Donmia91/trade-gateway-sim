@@ -91,6 +91,43 @@ export function getDb(): DbType {
       note TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_ledger_entries_run_id ON ledger_entries(run_id);
+    CREATE TABLE IF NOT EXISTS paper_accounts (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      quote_ccy TEXT NOT NULL,
+      base_ccy TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS paper_balances (
+      account_id TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      amount REAL NOT NULL,
+      PRIMARY KEY (account_id, currency)
+    );
+    CREATE TABLE IF NOT EXISTS paper_positions (
+      account_id TEXT PRIMARY KEY,
+      base_ccy TEXT NOT NULL,
+      qty REAL NOT NULL,
+      avg_entry REAL NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS paper_fills (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      ts TEXT NOT NULL,
+      side TEXT NOT NULL,
+      qty REAL NOT NULL,
+      price REAL NOT NULL,
+      notional REAL NOT NULL,
+      fee_usd REAL NOT NULL,
+      liquidity TEXT NOT NULL,
+      realized_pnl_usd REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_paper_fills_account_id ON paper_fills(account_id);
+    CREATE TABLE IF NOT EXISTS paper_stats (
+      account_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value REAL NOT NULL,
+      PRIMARY KEY (account_id, key)
+    );
   `);
 
   return db;

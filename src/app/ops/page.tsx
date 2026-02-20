@@ -36,6 +36,26 @@ interface KrakenBalanceRow {
   amount: number;
 }
 
+interface PaperSnapshot {
+  accountId: string;
+  balances: { currency: string; amount: number }[];
+  position: { base_ccy: string; qty: number; avg_entry: number } | null;
+  stats: Record<string, number>;
+  lastFills: Array<{
+    id: string;
+    ts: string;
+    side: string;
+    qty: number;
+    price: number;
+    notional: number;
+    fee_usd: number;
+    liquidity: string;
+    realized_pnl_usd: number;
+  }>;
+  market: { bid: number; ask: number; last: number; ts: string } | null;
+  unrealizedPnlUsd: number;
+}
+
 export default function OpsPage() {
   const [balance, setBalance] = useState<Balance | null>(null);
   const [runs, setRuns] = useState<RunRow[]>([]);
@@ -48,6 +68,14 @@ export default function OpsPage() {
   const [krakenBalances, setKrakenBalances] = useState<KrakenBalanceRow[]>([]);
   const [krakenBalanceLoading, setKrakenBalanceLoading] = useState(false);
   const [krakenBalanceError, setKrakenBalanceError] = useState<string | null>(null);
+  const [paperAccountId, setPaperAccountId] = useState<string>("");
+  const [paperSnapshot, setPaperSnapshot] = useState<PaperSnapshot | null>(null);
+  const [paperInitLoading, setPaperInitLoading] = useState(false);
+  const [paperOrderLoading, setPaperOrderLoading] = useState(false);
+  const [paperSnapshotLoading, setPaperSnapshotLoading] = useState(false);
+  const [paperCloseoutLoading, setPaperCloseoutLoading] = useState(false);
+  const [paperError, setPaperError] = useState<string | null>(null);
+  const [paperOrderQty, setPaperOrderQty] = useState("");
 
   function refresh() {
     setLoading(true);
@@ -120,6 +148,106 @@ export default function OpsPage() {
     }
   }
 
+  async function paperInit() {
+    setPaperError(null);
+    setPaperInitLoading(true);
+    try {
+      const res = await fetch("/api/paper/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initialUsd: 10000 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPaperError(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      if (data.accountId) {
+        setPaperAccountId(data.accountId);
+        paperFetchSnapshot(data.accountId);
+      }
+    } catch (e) {
+      setPaperError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setPaperInitLoading(false);
+    }
+  }
+
+  async function paperFetchSnapshot(accountId: string) {
+    if (!accountId) return;
+    setPaperSnapshotLoading(true);
+    setPaperError(null);
+    try {
+      const res = await fetch(`/api/paper/snapshot?accountId=${encodeURIComponent(accountId)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPaperError(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      setPaperSnapshot(data as PaperSnapshot);
+    } catch (e) {
+      setPaperError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setPaperSnapshotLoading(false);
+    }
+  }
+
+  async function paperOrder(side: "buy" | "sell") {
+    const qty = parseFloat(paperOrderQty);
+    if (!paperAccountId || !Number.isFinite(qty) || qty <= 0) {
+      setPaperError("Set account and positive BTC qty");
+      return;
+    }
+    setPaperError(null);
+    setPaperOrderLoading(true);
+    try {
+      const res = await fetch("/api/paper/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: paperAccountId, side, qtyBtc: qty }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPaperError(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      if (data.snapshot) setPaperSnapshot(data.snapshot as PaperSnapshot);
+      setPaperOrderQty("");
+      refresh();
+    } catch (e) {
+      setPaperError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setPaperOrderLoading(false);
+    }
+  }
+
+  async function paperCloseout() {
+    if (!paperAccountId) {
+      setPaperError("Init paper account first");
+      return;
+    }
+    setPaperError(null);
+    setPaperCloseoutLoading(true);
+    try {
+      const res = await fetch("/api/paper/closeout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: paperAccountId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPaperError(data.error || `HTTP ${res.status}`);
+        return;
+      }
+      if (data.snapshot) setPaperSnapshot(data.snapshot as PaperSnapshot);
+      refresh();
+    } catch (e) {
+      setPaperError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setPaperCloseoutLoading(false);
+    }
+  }
+
   useEffect(() => {
     refresh();
   }, []);
@@ -167,6 +295,145 @@ export default function OpsPage() {
           </div>
           {eodSmokeError && <p className="error-msg">{eodSmokeError}</p>}
           {krakenBalanceError && <p className="error-msg">{krakenBalanceError}</p>}
+        </div>
+        <div className="card">
+          <h3>Paper trading (Kraken market data, fake funds)</h3>
+          <div className="controls-row">
+            <button type="button" className="btn" onClick={paperInit} disabled={paperInitLoading}>
+              {paperInitLoading ? "Creating…" : "Init paper acct (10k USD)"}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => paperAccountId && paperFetchSnapshot(paperAccountId)}
+              disabled={!paperAccountId || paperSnapshotLoading}
+            >
+              {paperSnapshotLoading ? "Loading…" : "Refresh snapshot"}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => paperCloseout()}
+              disabled={!paperAccountId || paperCloseoutLoading}
+            >
+              {paperCloseoutLoading ? "Closing…" : "Closeout + Sweep"}
+            </button>
+          </div>
+          <div className="controls-row" style={{ alignItems: "center", marginTop: 8 }}>
+            <label>
+              Account:{" "}
+              <input
+                type="text"
+                className="input"
+                value={paperAccountId}
+                onChange={(e) => setPaperAccountId(e.target.value)}
+                placeholder="Init to create"
+                style={{ width: 280 }}
+              />
+            </label>
+            <label>
+              BTC qty:{" "}
+              <input
+                type="number"
+                className="input"
+                value={paperOrderQty}
+                onChange={(e) => setPaperOrderQty(e.target.value)}
+                placeholder="0.001"
+                min="0"
+                step="any"
+                style={{ width: 100 }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => paperOrder("buy")}
+              disabled={!paperAccountId || paperOrderLoading}
+            >
+              Market Buy
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => paperOrder("sell")}
+              disabled={!paperAccountId || paperOrderLoading}
+            >
+              Market Sell
+            </button>
+          </div>
+          {paperError && <p className="error-msg">{paperError}</p>}
+          {paperSnapshot && (
+            <div style={{ marginTop: 12, fontSize: 13 }}>
+              <div className="row">
+                <div className="col-12 col-md-6">
+                  <strong>Balances:</strong>{" "}
+                  {paperSnapshot.balances.map((b) => (
+                    <span key={b.currency}>
+                      {b.currency} {b.amount.toFixed(4)}{" "}
+                    </span>
+                  ))}
+                </div>
+                <div className="col-12 col-md-6">
+                  <strong>Position:</strong>{" "}
+                  {paperSnapshot.position && paperSnapshot.position.qty !== 0
+                    ? `${paperSnapshot.position.qty} ${paperSnapshot.position.base_ccy} @ avg ${paperSnapshot.position.avg_entry.toFixed(2)}`
+                    : "—"}
+                </div>
+              </div>
+              <div className="row" style={{ marginTop: 6 }}>
+                <div className="col-12 col-md-6">
+                  <strong>Realized PnL:</strong> ${(paperSnapshot.stats.realized_pnl_usd ?? 0).toFixed(2)} ·{" "}
+                  <strong>Unrealized PnL:</strong> ${(paperSnapshot.unrealizedPnlUsd ?? 0).toFixed(2)} ·{" "}
+                  <strong>Fees paid:</strong> ${(paperSnapshot.stats.fees_paid_usd ?? 0).toFixed(2)}
+                </div>
+                <div className="col-12 col-md-6">
+                  <strong>Volume 30d (USD):</strong> {(paperSnapshot.stats.volume_30d_usd ?? 0).toFixed(0)}
+                </div>
+              </div>
+              {paperSnapshot.market && (
+                <p className="muted" style={{ marginTop: 4 }}>
+                  Bid: ${paperSnapshot.market.bid.toFixed(2)} · Ask: ${paperSnapshot.market.ask.toFixed(2)} · Last: ${paperSnapshot.market.last.toFixed(2)}
+                </p>
+              )}
+              <div style={{ marginTop: 8 }}>
+                <strong>Last fills</strong>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Side</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Notional</th>
+                        <th>Fee</th>
+                        <th>Realized PnL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paperSnapshot.lastFills.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="muted">No fills yet</td>
+                        </tr>
+                      ) : (
+                        paperSnapshot.lastFills.slice(0, 10).map((f) => (
+                          <tr key={f.id}>
+                            <td>{new Date(f.ts).toLocaleString()}</td>
+                            <td>{f.side}</td>
+                            <td>{f.qty.toFixed(6)}</td>
+                            <td>${f.price.toFixed(2)}</td>
+                            <td>${f.notional.toFixed(2)}</td>
+                            <td>${f.fee_usd.toFixed(2)}</td>
+                            <td>${f.realized_pnl_usd.toFixed(2)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         {loading && balance === null ? (
           <p className="small">Loading…</p>

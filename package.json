@@ -20,7 +20,8 @@
     "eod:ci": "tsx scripts/eod.ts --config configs/daily.json --ci",
     "test:sweep": "tsx tests/sweep.test.ts",
     "test:fees": "tsx tests/krakenFees.test.ts",
-    "test:maker": "tsx tests/makerDetection.test.ts"
+    "test:maker": "tsx tests/makerDetection.test.ts",
+    "test:paper": "tsx tests/paperEngine.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.6.0",

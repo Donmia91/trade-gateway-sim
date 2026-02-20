@@ -58,3 +58,18 @@ export function calcKrakenFeeUsd(params: {
   );
   return { feeUsd, tierLabel: tier.label, rateBps };
 }
+
+/** Paper / reporting: liquidity "maker"|"taker", returns feeUsd and feeRateBps. */
+export function calcFeeUsdPaper(params: {
+  notionalUsd: number;
+  liquidity: "maker" | "taker";
+  volume30dUsd: number;
+}): { feeUsd: number; feeRateBps: number; tierLabel: string } {
+  const isMaker = params.liquidity === "maker";
+  const { feeUsd, tier, rateBps } = calcFeeUsd(
+    params.notionalUsd,
+    isMaker,
+    params.volume30dUsd
+  );
+  return { feeUsd, feeRateBps: rateBps, tierLabel: tier.label };
+}
