@@ -1,0 +1,6 @@
+{
+  "steps": [
+    { "mode": "SIM", "scenario": "CHOP", "durationSec": 15 }
+  ],
+  "tickMs": 500
+}

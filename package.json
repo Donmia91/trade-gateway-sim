@@ -16,7 +16,10 @@
     "prebuild": "pnpm clean",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "eod": "tsx scripts/eod.ts --config configs/daily.json",
+    "eod:smoke": "tsx scripts/eod.ts --config configs/smoke.json",
+    "eod:ci": "tsx scripts/eod.ts --config configs/daily.json --ci"
   },
   "dependencies": {
     "better-sqlite3": "^11.6.0",
@@ -36,6 +39,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "15.0.3",
     "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }
 }

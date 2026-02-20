@@ -1,0 +1,5 @@
+{
+  "minTrades": 1,
+  "minPnlUsd": 0,
+  "maxPnlUsd": 999999
+}

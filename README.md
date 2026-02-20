@@ -37,6 +37,20 @@ Open **http://localhost:3000/dash** (root redirects to `/dash`). If the port is 
 
 Set via dashboard **Data source** or `POST /api/sim/set-source`. Even with live data, orders still go to **MockBroker** (paper only).
 
+## Daily Ops (EOD)
+
+One command produces EOD artifacts and a PASS/FAIL verdict.
+
+| Command | Description |
+|--------|---------------|
+| `pnpm eod` | Run EOD with default config (`configs/daily.json`). |
+| `pnpm eod:smoke` | Fast run using `configs/smoke.json`. |
+| `pnpm eod:ci` | Same as `eod` with `--ci` (quiet, for CI). |
+
+**Options:** `--config <path>`, `--seed <number>`, `--ci`
+
+**Outputs:** `out/eod/<runId>/` — `summary.json`, `report.md`, `trades.csv`. **Gates** (from `configs/ops-gates.json`): `error_count === 0`, `trade_count >= minTrades`, `realized_pnl_usd` in `[minPnlUsd, maxPnlUsd]`. Exit code 0 = PASS, 1 = FAIL.
+
 ## Suite runner
 
 Run multi-scenario campaigns: **Run Suite** on the dashboard or `POST /api/sim/run-suite` with optional `{ plan, tickMs }`. Default plan: CHOP 15m, TREND_UP 15m, PANIC_DOWN 15m. Returns summary (start/end equity, PnL, max drawdown, trade count, fees).

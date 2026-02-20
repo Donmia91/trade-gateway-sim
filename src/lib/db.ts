@@ -48,6 +48,28 @@ export function getDb(): Database.Database {
         ticks INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_snapshots_ts ON snapshots(ts);
+      CREATE TABLE IF NOT EXISTS eod_runs (
+        id TEXT PRIMARY KEY,
+        started_at TEXT NOT NULL,
+        git_sha TEXT,
+        seed INTEGER,
+        config_json TEXT,
+        node_version TEXT,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS eod_metrics (
+        run_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value REAL NOT NULL,
+        PRIMARY KEY(run_id, key)
+      );
+      CREATE TABLE IF NOT EXISTS eod_events (
+        run_id TEXT NOT NULL,
+        level TEXT NOT NULL,
+        message TEXT,
+        ts TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_eod_events_run_id ON eod_events(run_id);
     `);
   }
   return db;
