@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import { randomBytes } from "crypto";
+import { config as appConfig } from "../src/lib/config";
 
 const DEFAULT_CONFIG = "configs/daily.json";
 const DEFAULT_GATES_PATH = "configs/ops-gates.json";
@@ -112,6 +113,7 @@ async function main(): Promise<void> {
     pnlUsd: number;
     realizedPnlUsd: number;
     unrealizedPnlUsd: number;
+    feesTotalUsd: number;
   };
   let errorCount = 0;
 
@@ -128,10 +130,11 @@ async function main(): Promise<void> {
       pnlUsd: result.summary.pnlUsd,
       realizedPnlUsd: result.summary.realizedPnlUsd,
       unrealizedPnlUsd: result.summary.unrealizedPnlUsd,
+      feesTotalUsd: result.summary.feesTotalUsd,
     };
   } catch (e) {
     errorCount = 1;
-    summary = { tradeCount: 0, pnlUsd: 0, realizedPnlUsd: 0, unrealizedPnlUsd: 0 };
+    summary = { tradeCount: 0, pnlUsd: 0, realizedPnlUsd: 0, unrealizedPnlUsd: 0, feesTotalUsd: 0 };
     insertEodEvent(runId, "error", e instanceof Error ? e.message : String(e));
   }
 
@@ -139,11 +142,13 @@ async function main(): Promise<void> {
   const realized_pnl_usd = summary.realizedPnlUsd;
   const unrealized_pnl_usd = summary.unrealizedPnlUsd;
   const equity_delta_usd = summary.pnlUsd;
+  const total_fees_usd = summary.feesTotalUsd;
 
   insertEodMetric(runId, "trade_count", trade_count);
   insertEodMetric(runId, "realized_pnl_usd", realized_pnl_usd);
   insertEodMetric(runId, "equity_delta_usd", equity_delta_usd);
   insertEodMetric(runId, "unrealized_pnl_usd", unrealized_pnl_usd);
+  insertEodMetric(runId, "total_fees_usd", total_fees_usd);
   insertEodMetric(runId, "error_count", errorCount);
 
   const { applySweep } = await import("../src/lib/ledger");
@@ -175,11 +180,16 @@ async function main(): Promise<void> {
     seed,
     nodeVersion,
     config: configSnapshot,
+    market: "BTC-USD",
+    exchange: appConfig.EXCHANGE,
+    makerFeeRate: appConfig.MAKER_FEE_RATE,
+    takerFeeRate: appConfig.TAKER_FEE_RATE,
     metrics: {
       trade_count,
       realized_pnl_usd,
       equity_delta_usd,
       unrealized_pnl_usd,
+      total_fees_usd,
       pnl_usd_is_equity_delta: true,
       error_count: errorCount,
       usd_balance_before: sweep.before,
@@ -209,10 +219,13 @@ async function main(): Promise<void> {
     `**Status:** ${status}`,
     `**Started:** ${startedAt}`,
     `**Git SHA:** ${gitSha || "(none)"}`,
+    `**Market:** BTC-USD | **Exchange:** ${appConfig.EXCHANGE}`,
+    `**Fees:** maker ${appConfig.MAKER_FEE_RATE}, taker ${appConfig.TAKER_FEE_RATE}`,
     "",
     "## Metrics",
     `- trade_count: ${trade_count}`,
-    `- realized_pnl_usd: ${realized_pnl_usd} (used for sweep only)`,
+    `- realized_pnl_usd: ${realized_pnl_usd} (net of fees, used for sweep only)`,
+    `- total_fees_usd: ${total_fees_usd}`,
     `- equity_delta_usd: ${equity_delta_usd} (not used for sweep)`,
     `- unrealized_pnl_usd: ${unrealized_pnl_usd}`,
     `- pnl_usd_is_equity_delta: true (equity delta not used for sweep)`,
@@ -232,7 +245,7 @@ async function main(): Promise<void> {
   const { getEvents } = await import("../src/lib/ledger");
   const events = getEvents(2000);
   const filled = events.filter((e) => e.type === "ORDER_FILLED");
-  const csvRows: string[] = ["ts,orderId,pair,side,qty,px,feeUsd"];
+  const csvRows: string[] = ["ts,orderId,pair,side,qty,px,fee_usd"];
   for (const e of filled) {
     const d = e.data as { ts?: number; orderId?: string; pair?: string; side?: string; qty?: number; px?: number; feeUsd?: number };
     csvRows.push(

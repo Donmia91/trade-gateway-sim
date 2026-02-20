@@ -1,5 +1,6 @@
 import type { BookTop } from "../broker/types";
 import type { MockBroker } from "../broker/mockBroker";
+import { config } from "../config";
 import { logEvent } from "../ledger";
 import { nowMs } from "../time";
 
@@ -77,7 +78,7 @@ export function runMomentumLite(
     spreadBps: top.spreadBps,
   });
 
-  const pair = "XRP/USD";
+  const pair = config.LIVE_PAIR;
   const positionNotional = ctx.positionXrp * top.mid;
   if (positionNotional >= MAX_POSITION_NOTIONAL) {
     logEvent("RISK_BLOCK", {

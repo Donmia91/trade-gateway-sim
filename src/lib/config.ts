@@ -28,10 +28,15 @@ export const config = {
   DB_PATH: envStr("DB_PATH", "./data/ledger.sqlite"),
   // v1.1
   DATA_SOURCE: envStr("DATA_SOURCE", "SIM") as "SIM" | "KRAKEN_PUBLIC" | "COINBASE_PUBLIC",
-  LIVE_PAIR: envStr("LIVE_PAIR", "XRP/USD"),
+  LIVE_PAIR: envStr("LIVE_PAIR", "BTC/USD"),
   SNAPSHOT_EVERY_MS: envNum("SNAPSHOT_EVERY_MS", 5000),
   TICK_LOG_EVERY_N: envNum("TICK_LOG_EVERY_N", 8),
   SUITE_DEFAULT: envBool("SUITE_DEFAULT", true),
   KRAKEN_WS_URL: envStr("KRAKEN_WS_URL", "wss://ws.kraken.com/v2"),
   COINBASE_WS_URL: envStr("COINBASE_WS_URL", "wss://advanced-trade-ws.coinbase.com"),
+  // Exchange fee (Kraken Pro spot baseline tier)
+  EXCHANGE: envStr("EXCHANGE", "kraken"),
+  FEE_MODEL: envStr("FEE_MODEL", "maker_taker"),
+  MAKER_FEE_RATE: envNum("MAKER_FEE_RATE", 0.0025),
+  TAKER_FEE_RATE: envNum("TAKER_FEE_RATE", 0.004),
 } as const;

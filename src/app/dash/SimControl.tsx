@@ -30,7 +30,7 @@ export function SimControl({
           ? {
               ...body,
               source: status.dataSource ?? "SIM",
-              pair: status.livePair ?? "XRP/USD",
+              pair: status.livePair ?? "BTC/USD",
             }
           : body;
       const res = await fetch(url, {

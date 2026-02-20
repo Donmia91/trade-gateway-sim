@@ -69,7 +69,7 @@ export function StatsCards({ status }: { status: SimStatus }) {
       <div className="col-3">
         <div className="card">
           <h3>Position</h3>
-          <div className="metric">{status.position.xrp.toFixed(4)} XRP</div>
+          <div className="metric">{status.position.xrp.toFixed(4)} {(status.livePair ?? "BTC/USD").split("/")[0]}</div>
           <div className="small">
             {status.position.avgPx > 0
               ? `avg ${status.position.avgPx.toFixed(4)}`

@@ -18,7 +18,8 @@
     "eod": "tsx scripts/eod.ts --config configs/daily.json",
     "eod:smoke": "tsx scripts/eod.ts --config configs/smoke.json --gates configs/ops-gates-smoke.json",
     "eod:ci": "tsx scripts/eod.ts --config configs/daily.json --ci",
-    "test:sweep": "tsx tests/sweep.test.ts"
+    "test:sweep": "tsx tests/sweep.test.ts",
+    "test:fees": "tsx tests/fees.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.6.0",

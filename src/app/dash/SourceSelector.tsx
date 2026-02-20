@@ -15,7 +15,7 @@ export function SourceSelector({
 }) {
   const [source, setSource] = useState(status.dataSource ?? "SIM");
   const [scenario, setScenario] = useState(status.scenarioName || "CHOP");
-  const [pair, setPair] = useState(status.livePair ?? "XRP/USD");
+  const [pair, setPair] = useState(status.livePair ?? "BTC/USD");
   const [loading, setLoading] = useState(false);
 
   async function apply() {

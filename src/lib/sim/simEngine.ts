@@ -13,7 +13,7 @@ import { runMomentumLite } from "../strategy/momentumLite";
 import * as dataSourceManager from "../marketdata/manager";
 import type { MarketTick } from "../marketdata/types";
 
-const DEFAULT_PAIR = "XRP/USD";
+const DEFAULT_PAIR = "BTC/USD";
 const TICK_STALL_THRESHOLD_MS = 3 * 250; // 3 * SIM_TICK_MS default
 const SNAPSHOT_LOG_EVERY_N = 6;
 

@@ -1,8 +1,9 @@
 import type { BookTop, Fill, Order, Pair, Side } from "./types";
 import { nowMs } from "../time";
 
-const FEE_RATE = 0.0026; // 0.26%
-const DEFAULT_PAIR: Pair = "XRP/USD";
+// Default to Kraken taker when feeBps not set. TODO: apply maker when order provides liquidity.
+const FEE_RATE = 0.004; // Kraken Pro taker 0.40%
+const DEFAULT_PAIR: Pair = "BTC/USD";
 
 let orderIdCounter = 0;
 function nextOrderId(): string {
