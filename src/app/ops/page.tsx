@@ -20,13 +20,24 @@ interface RunRow {
   usd_balance_after: number;
 }
 
+interface KrakenTicker {
+  pair: string;
+  last: number;
+  bid: number;
+  ask: number;
+  ts: number;
+}
+
 export default function OpsPage() {
   const [balance, setBalance] = useState<Balance | null>(null);
   const [runs, setRuns] = useState<RunRow[]>([]);
+  const [ticker, setTicker] = useState<KrakenTicker | null>(null);
+  const [tickerError, setTickerError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   function refresh() {
     setLoading(true);
+    setTickerError(false);
     Promise.all([
       fetch("/api/ops/balance")
         .then((r) => (r.ok ? r.json() : null))
@@ -34,6 +45,16 @@ export default function OpsPage() {
       fetch("/api/ops/runs?limit=10")
         .then((r) => (r.ok ? r.json() : []))
         .then((data) => setRuns(Array.isArray(data) ? (data as RunRow[]) : [])),
+      fetch("/api/kraken/ticker?pair=XBTUSD")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data != null && typeof data.last === "number" && typeof data.bid === "number" && typeof data.ask === "number") {
+            setTicker(data as KrakenTicker);
+          } else {
+            setTickerError(true);
+          }
+        })
+        .catch(() => setTickerError(true)),
     ])
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -76,6 +97,24 @@ export default function OpsPage() {
                       <span className="muted">0.00</span>
                     )}
                   </div>
+                </div>
+              </div>
+              <div className="col-12 col-md-6">
+                <div className="card">
+                  <h3>Kraken BTC/USD</h3>
+                  {tickerError || ticker == null ? (
+                    <div className="metric">
+                      <span className="muted">Unavailable</span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "14px" }}>
+                      <div>Last: ${ticker.last.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div>Bid: ${ticker.bid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Ask: ${ticker.ask.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div className="muted" style={{ fontSize: "12px", marginTop: "4px" }}>
+                        {new Date(ticker.ts).toLocaleString()}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
