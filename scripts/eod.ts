@@ -97,7 +97,12 @@ async function main(): Promise<void> {
   });
   insertEodEvent(runId, "info", "EOD run started", startedAt);
 
-  let summary: { tradeCount: number; pnlUsd: number };
+  let summary: {
+    tradeCount: number;
+    pnlUsd: number;
+    realizedPnlUsd: number;
+    unrealizedPnlUsd: number;
+  };
   let errorCount = 0;
 
   try {
@@ -108,19 +113,34 @@ async function main(): Promise<void> {
         : { mode: s.mode as "KRAKEN_PUBLIC" | "COINBASE_PUBLIC", durationSec: s.durationSec }
     );
     const result = await runSuite(plan, config.tickMs);
-    summary = { tradeCount: result.summary.tradeCount, pnlUsd: result.summary.pnlUsd };
+    summary = {
+      tradeCount: result.summary.tradeCount,
+      pnlUsd: result.summary.pnlUsd,
+      realizedPnlUsd: result.summary.realizedPnlUsd,
+      unrealizedPnlUsd: result.summary.unrealizedPnlUsd,
+    };
   } catch (e) {
     errorCount = 1;
-    summary = { tradeCount: 0, pnlUsd: 0 };
+    summary = { tradeCount: 0, pnlUsd: 0, realizedPnlUsd: 0, unrealizedPnlUsd: 0 };
     insertEodEvent(runId, "error", e instanceof Error ? e.message : String(e));
   }
 
   const trade_count = summary.tradeCount;
-  const realized_pnl_usd = summary.pnlUsd;
+  const realized_pnl_usd = summary.realizedPnlUsd;
+  const unrealized_pnl_usd = summary.unrealizedPnlUsd;
+  const equity_delta_usd = summary.pnlUsd;
 
   insertEodMetric(runId, "trade_count", trade_count);
   insertEodMetric(runId, "realized_pnl_usd", realized_pnl_usd);
+  insertEodMetric(runId, "equity_delta_usd", equity_delta_usd);
+  insertEodMetric(runId, "unrealized_pnl_usd", unrealized_pnl_usd);
   insertEodMetric(runId, "error_count", errorCount);
+
+  const { applySweep } = await import("../src/lib/ledger");
+  const sweep = await applySweep(runId, realized_pnl_usd);
+  insertEodMetric(runId, "usd_balance_before", sweep.before);
+  insertEodMetric(runId, "usd_balance_after", sweep.after);
+  insertEodMetric(runId, "swept_to_usd", sweep.swept);
 
   const gatesPath = path.join(process.cwd(), OPS_GATES_PATH);
   const gatesConfig = fs.existsSync(gatesPath)
@@ -149,7 +169,13 @@ async function main(): Promise<void> {
     metrics: {
       trade_count,
       realized_pnl_usd,
+      equity_delta_usd,
+      unrealized_pnl_usd,
+      pnl_usd_is_equity_delta: true,
       error_count: errorCount,
+      usd_balance_before: sweep.before,
+      usd_balance_after: sweep.after,
+      swept_to_usd: sweep.swept,
     },
     gates: {
       error_count_ok: gateErrorOk,
@@ -177,8 +203,14 @@ async function main(): Promise<void> {
     "",
     "## Metrics",
     `- trade_count: ${trade_count}`,
-    `- realized_pnl_usd: ${realized_pnl_usd}`,
+    `- realized_pnl_usd: ${realized_pnl_usd} (used for sweep only)`,
+    `- equity_delta_usd: ${equity_delta_usd} (not used for sweep)`,
+    `- unrealized_pnl_usd: ${unrealized_pnl_usd}`,
+    `- pnl_usd_is_equity_delta: true (equity delta not used for sweep)`,
     `- error_count: ${errorCount}`,
+    `- usd_balance_before: ${sweep.before}`,
+    `- usd_balance_after: ${sweep.after}`,
+    `- swept_to_usd: ${sweep.swept}`,
     "",
     "## Gates",
     `- error_count === 0: ${gateErrorOk ? "✓" : "✗"}`,

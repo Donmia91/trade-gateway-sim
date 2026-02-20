@@ -11,7 +11,12 @@ const DEFAULT_PLAN: SuiteStep[] = [
 export interface SuiteSummary {
   startEquityUsd: number;
   endEquityUsd: number;
+  /** Equity delta (mark-to-market) for this run; not used for sweep. */
   pnlUsd: number;
+  /** Realized PnL delta for this run; use for sweep. */
+  realizedPnlUsd: number;
+  /** Unrealized PnL at end of run (for reporting). */
+  unrealizedPnlUsd: number;
   maxDrawdownPct: number;
   tradeCount: number;
   feesTotalUsd: number;
@@ -25,6 +30,7 @@ export async function runSuite(
 
   const startStatus = getStatus();
   let startEquityUsd = startStatus.pnl.equityUsd;
+  let startRealizedUsd = startStatus.pnl.realizedUsd;
   let maxDrawdownPct = 0;
   let tradeCount = 0;
   let feesTotalUsd = 0;
@@ -60,6 +66,7 @@ export async function runSuite(
     if (idx === 0) {
       const s = getStatus();
       startEquityUsd = s.pnl.equityUsd;
+      startRealizedUsd = s.pnl.realizedUsd;
     }
 
     await new Promise<void>((resolve) => {
@@ -86,6 +93,8 @@ export async function runSuite(
     startEquityUsd,
     endEquityUsd: endStatus.pnl.equityUsd,
     pnlUsd: endStatus.pnl.equityUsd - startEquityUsd,
+    realizedPnlUsd: endStatus.pnl.realizedUsd - startRealizedUsd,
+    unrealizedPnlUsd: endStatus.pnl.unrealizedUsd,
     maxDrawdownPct,
     tradeCount,
     feesTotalUsd,

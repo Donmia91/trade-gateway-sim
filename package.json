@@ -3,9 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3"
-    ]
+    "onlyBuiltDependencies": ["better-sqlite3"]
   },
   "scripts": {
     "dev": "next dev",
@@ -19,7 +17,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "eod": "tsx scripts/eod.ts --config configs/daily.json",
     "eod:smoke": "tsx scripts/eod.ts --config configs/smoke.json",
-    "eod:ci": "tsx scripts/eod.ts --config configs/daily.json --ci"
+    "eod:ci": "tsx scripts/eod.ts --config configs/daily.json --ci",
+    "test:sweep": "tsx tests/sweep.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.6.0",
