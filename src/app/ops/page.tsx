@@ -31,6 +31,11 @@ interface KrakenTicker {
   ts: string;
 }
 
+interface KrakenBalanceRow {
+  asset: string;
+  amount: number;
+}
+
 export default function OpsPage() {
   const [balance, setBalance] = useState<Balance | null>(null);
   const [runs, setRuns] = useState<RunRow[]>([]);
@@ -38,6 +43,11 @@ export default function OpsPage() {
   const [ticker, setTicker] = useState<KrakenTicker | null>(null);
   const [tickerError, setTickerError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [eodSmokeLoading, setEodSmokeLoading] = useState(false);
+  const [eodSmokeError, setEodSmokeError] = useState<string | null>(null);
+  const [krakenBalances, setKrakenBalances] = useState<KrakenBalanceRow[]>([]);
+  const [krakenBalanceLoading, setKrakenBalanceLoading] = useState(false);
+  const [krakenBalanceError, setKrakenBalanceError] = useState<string | null>(null);
 
   function refresh() {
     setLoading(true);
@@ -72,6 +82,44 @@ export default function OpsPage() {
       .finally(() => setLoading(false));
   }
 
+  async function runEodSmoke() {
+    setEodSmokeError(null);
+    setEodSmokeLoading(true);
+    try {
+      const res = await fetch("/api/ops/run-eod-smoke", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEodSmokeError(data.error || data.message || `HTTP ${res.status}`);
+        return;
+      }
+      refresh();
+    } catch (e) {
+      setEodSmokeError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setEodSmokeLoading(false);
+    }
+  }
+
+  async function refreshKrakenBalances() {
+    setKrakenBalanceError(null);
+    setKrakenBalanceLoading(true);
+    try {
+      const res = await fetch("/api/ops/kraken-balance");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setKrakenBalanceError(data.message || data.error || `HTTP ${res.status}`);
+        setKrakenBalances([]);
+        return;
+      }
+      setKrakenBalances(Array.isArray(data.balances) ? data.balances : []);
+    } catch (e) {
+      setKrakenBalanceError(e instanceof Error ? e.message : "Request failed");
+      setKrakenBalances([]);
+    } finally {
+      setKrakenBalanceLoading(false);
+    }
+  }
+
   useEffect(() => {
     refresh();
   }, []);
@@ -94,6 +142,32 @@ export default function OpsPage() {
         </div>
       </div>
       <div className="container">
+        <div className="card controls-card">
+          <h3>Controls</h3>
+          <div className="controls-row">
+            <button type="button" className="btn" onClick={refresh} disabled={loading}>
+              Refresh
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={runEodSmoke}
+              disabled={eodSmokeLoading}
+            >
+              {eodSmokeLoading ? "Running…" : "Run EOD Smoke (Sim)"}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={refreshKrakenBalances}
+              disabled={krakenBalanceLoading}
+            >
+              {krakenBalanceLoading ? "Loading…" : "Refresh Kraken Balances"}
+            </button>
+          </div>
+          {eodSmokeError && <p className="error-msg">{eodSmokeError}</p>}
+          {krakenBalanceError && <p className="error-msg">{krakenBalanceError}</p>}
+        </div>
         {loading && balance === null ? (
           <p className="small">Loading…</p>
         ) : (
@@ -183,6 +257,39 @@ export default function OpsPage() {
                               <td>{(r.maker_count ?? 0)} / {(r.taker_count ?? 0)}</td>
                               <td>${(r.swept_to_usd ?? 0).toFixed(2)}</td>
                               <td>${(r.usd_balance_after ?? 0).toFixed(2)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="row">
+              <div className="col-12">
+                <div className="card">
+                  <h3>Kraken Balances (read-only)</h3>
+                  <div className="table-wrap">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Asset</th>
+                          <th>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {krakenBalances.length === 0 ? (
+                          <tr>
+                            <td colSpan={2} className="muted">
+                              Click &quot;Refresh Kraken Balances&quot; to load.
+                            </td>
+                          </tr>
+                        ) : (
+                          krakenBalances.map((b) => (
+                            <tr key={b.asset}>
+                              <td>{b.asset}</td>
+                              <td>{b.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 })}</td>
                             </tr>
                           ))
                         )}
