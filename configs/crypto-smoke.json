@@ -1,0 +1,7 @@
+{
+  "steps": [
+    { "mode": "SIM", "scenario": "TREND_UP", "durationSec": 30 },
+    { "mode": "SIM", "scenario": "PANIC_DOWN", "durationSec": 28 }
+  ],
+  "tickMs": 350
+}

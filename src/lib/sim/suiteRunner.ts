@@ -15,7 +15,7 @@ export interface SuiteSummary {
   pnlUsd: number;
   /** Realized PnL delta for this run; use for sweep. */
   realizedPnlUsd: number;
-  /** Unrealized PnL at end of run (for reporting). */
+  /** Unrealized PnL delta for this run (informational only; not used for sweep). */
   unrealizedPnlUsd: number;
   maxDrawdownPct: number;
   tradeCount: number;
@@ -31,6 +31,7 @@ export async function runSuite(
   const startStatus = getStatus();
   let startEquityUsd = startStatus.pnl.equityUsd;
   let startRealizedUsd = startStatus.pnl.realizedUsd;
+  let startUnrealizedUsd = startStatus.pnl.unrealizedUsd;
   let maxDrawdownPct = 0;
   let tradeCount = 0;
   let feesTotalUsd = 0;
@@ -67,6 +68,7 @@ export async function runSuite(
       const s = getStatus();
       startEquityUsd = s.pnl.equityUsd;
       startRealizedUsd = s.pnl.realizedUsd;
+      startUnrealizedUsd = s.pnl.unrealizedUsd;
     }
 
     await new Promise<void>((resolve) => {
@@ -94,7 +96,7 @@ export async function runSuite(
     endEquityUsd: endStatus.pnl.equityUsd,
     pnlUsd: endStatus.pnl.equityUsd - startEquityUsd,
     realizedPnlUsd: endStatus.pnl.realizedUsd - startRealizedUsd,
-    unrealizedPnlUsd: endStatus.pnl.unrealizedUsd,
+    unrealizedPnlUsd: endStatus.pnl.unrealizedUsd - startUnrealizedUsd,
     maxDrawdownPct,
     tradeCount,
     feesTotalUsd,
