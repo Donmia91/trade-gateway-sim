@@ -5,8 +5,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const raw = searchParams.get("limit");
-    const n = Number(raw);
-    const limit = Number.isFinite(n) ? n : 10;
+    const parsed = Number(raw);
+    const limit = Number.isFinite(parsed) ? parsed : 10;
     const clamped = Math.min(Math.max(1, Math.floor(limit)), 100);
     const runs = getEodRuns(clamped);
     const out = runs.map((r) => {

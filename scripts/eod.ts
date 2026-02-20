@@ -128,9 +128,12 @@ async function main(): Promise<void> {
   const trade_count = summary.tradeCount;
   const realized_pnl_usd = summary.realizedPnlUsd;
   const unrealized_pnl_usd = summary.unrealizedPnlUsd;
+  const equity_delta_usd = summary.pnlUsd;
 
   insertEodMetric(runId, "trade_count", trade_count);
   insertEodMetric(runId, "realized_pnl_usd", realized_pnl_usd);
+  insertEodMetric(runId, "equity_delta_usd", equity_delta_usd);
+  insertEodMetric(runId, "unrealized_pnl_usd", unrealized_pnl_usd);
   insertEodMetric(runId, "error_count", errorCount);
 
   const { applySweep } = await import("../src/lib/ledger");
@@ -166,6 +169,7 @@ async function main(): Promise<void> {
     metrics: {
       trade_count,
       realized_pnl_usd,
+      equity_delta_usd,
       unrealized_pnl_usd,
       pnl_usd_is_equity_delta: true,
       error_count: errorCount,
@@ -199,7 +203,8 @@ async function main(): Promise<void> {
     "",
     "## Metrics",
     `- trade_count: ${trade_count}`,
-    `- realized_pnl_usd: ${realized_pnl_usd} (used for sweep)`,
+    `- realized_pnl_usd: ${realized_pnl_usd} (used for sweep only)`,
+    `- equity_delta_usd: ${equity_delta_usd} (not used for sweep)`,
     `- unrealized_pnl_usd: ${unrealized_pnl_usd}`,
     `- pnl_usd_is_equity_delta: true (equity delta not used for sweep)`,
     `- error_count: ${errorCount}`,
