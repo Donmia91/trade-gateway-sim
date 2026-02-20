@@ -16,6 +16,10 @@ export interface MockBrokerOptions {
   spreadBps: number;
   /** Slippage factor for market orders (e.g. 1.001 = 0.1% worse) */
   slippageFactor?: number;
+  /** Optional fee in bps (overrides FEE_RATE when set; default 0 when from config) */
+  feeBps?: number;
+  /** Optional slippage in bps against you (overrides slippageFactor when set) */
+  slippageBps?: number;
 }
 
 export class MockBroker {
@@ -61,7 +65,12 @@ export class MockBroker {
     this.openOrders.push(full);
 
     const top = this.getTop(full.pair);
-    const slippage = this.options.slippageFactor ?? 1.001;
+    const slippage =
+      this.options.slippageBps !== undefined
+        ? 1 + this.options.slippageBps / 10000
+        : (this.options.slippageFactor ?? 1.001);
+    const feeRate =
+      this.options.feeBps !== undefined ? this.options.feeBps / 10000 : FEE_RATE;
 
     if (full.type === "market") {
       const fillPx =
@@ -69,7 +78,7 @@ export class MockBroker {
           ? top.ask * slippage
           : top.bid / slippage;
       const notional = full.qty * fillPx;
-      const feeUsd = notional * FEE_RATE;
+      const feeUsd = notional * feeRate;
 
       if (full.side === "buy") {
         const cost = notional + feeUsd;
@@ -107,7 +116,12 @@ export class MockBroker {
   }
 
   tryFillLimitOrders(top: BookTop): void {
-    const slippage = this.options.slippageFactor ?? 1.001;
+    const slippage =
+      this.options.slippageBps !== undefined
+        ? 1 + this.options.slippageBps / 10000
+        : (this.options.slippageFactor ?? 1.001);
+    const feeRate =
+      this.options.feeBps !== undefined ? this.options.feeBps / 10000 : FEE_RATE;
     for (const order of [...this.openOrders]) {
       if (order.type !== "limit" || order.limitPx === undefined) continue;
       let fillPx: number;
@@ -118,7 +132,7 @@ export class MockBroker {
       } else continue;
 
       if (order.side === "buy") {
-        const cost = order.qty * fillPx * (1 + FEE_RATE);
+        const cost = order.qty * fillPx * (1 + feeRate);
         if (this.balances.USD < cost) continue;
         this.balances.USD -= cost;
         this.balances.XRP += order.qty;
@@ -126,10 +140,10 @@ export class MockBroker {
         if (this.balances.XRP < order.qty) continue;
         this.balances.XRP -= order.qty;
         const notional = order.qty * fillPx;
-        this.balances.USD += notional * (1 - FEE_RATE);
+        this.balances.USD += notional * (1 - feeRate);
       }
 
-      const feeUsd = order.qty * fillPx * FEE_RATE;
+      const feeUsd = order.qty * fillPx * feeRate;
       this.fillsQueue.push({
         orderId: order.id,
         pair: order.pair,

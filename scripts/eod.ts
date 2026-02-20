@@ -19,6 +19,10 @@ const LATEST_DIR = "latest";
 interface EodConfig {
   steps: Array<{ mode: string; scenario?: string; durationSec: number }>;
   tickMs?: number;
+  /** Optional fee in bps (default 0 when provided in config). */
+  feeBps?: number;
+  /** Optional slippage in bps against you (default 0 when provided in config). */
+  slippageBps?: number;
 }
 
 interface OpsGates {
@@ -122,7 +126,10 @@ async function main(): Promise<void> {
         ? { mode: s.mode as "SIM", scenario: s.scenario, durationSec: s.durationSec }
         : { mode: s.mode as "KRAKEN_PUBLIC" | "COINBASE_PUBLIC", durationSec: s.durationSec }
     );
-    const result = await runSuite(plan, config.tickMs);
+    const result = await runSuite(plan, config.tickMs, {
+      feeBps: config.feeBps,
+      slippageBps: config.slippageBps,
+    });
     summary = {
       tradeCount: result.summary.tradeCount,
       pnlUsd: result.summary.pnlUsd,

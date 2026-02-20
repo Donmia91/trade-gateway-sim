@@ -22,9 +22,15 @@ export interface SuiteSummary {
   feesTotalUsd: number;
 }
 
+export interface RunSuiteOptions {
+  feeBps?: number;
+  slippageBps?: number;
+}
+
 export async function runSuite(
   plan: SuiteStep[] = DEFAULT_PLAN,
-  tickMs?: number
+  tickMs?: number,
+  options?: RunSuiteOptions
 ): Promise<{ ok: true; summary: SuiteSummary; plan: SuiteStep[] }> {
   await simEngine.stop();
 
@@ -56,11 +62,15 @@ export async function runSuite(
         scenario: step.scenario,
         tickMs,
         source: "SIM",
+        feeBps: options?.feeBps,
+        slippageBps: options?.slippageBps,
       });
     } else if (step.mode === "KRAKEN_PUBLIC" || step.mode === "COINBASE_PUBLIC") {
       await simEngine.start({
         source: step.mode,
         pair: simState.livePair,
+        feeBps: options?.feeBps,
+        slippageBps: options?.slippageBps,
       });
     }
 

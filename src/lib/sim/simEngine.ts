@@ -142,6 +142,8 @@ export async function start(options: {
   tickMs?: number;
   source?: "SIM" | "KRAKEN_PUBLIC" | "COINBASE_PUBLIC";
   pair?: string;
+  feeBps?: number;
+  slippageBps?: number;
 }): Promise<SimStatus> {
   if (simState.running) {
     return getStatus();
@@ -159,12 +161,16 @@ export async function start(options: {
       mid: scenario.startPrice,
       spreadBps: scenario.baseSpreadBps,
       slippageFactor: 1 + (1 - scenario.liquidity) * 0.002,
+      feeBps: options.feeBps,
+      slippageBps: options.slippageBps,
     });
   } else {
     currentScenario = null;
     broker = new MockBroker({
       mid: 2.5,
       spreadBps: 10,
+      feeBps: options.feeBps,
+      slippageBps: options.slippageBps,
     });
   }
 
