@@ -33,5 +33,11 @@ jobs:
       - name: Sweep test
         run: pnpm test:sweep
 
+      - name: Kraken fees test
+        run: pnpm test:fees
+
+      - name: Maker detection test
+        run: pnpm test:maker
+
       - name: Build
         run: pnpm build

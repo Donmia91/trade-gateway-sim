@@ -11,15 +11,16 @@ const DEFAULT_PLAN: SuiteStep[] = [
 export interface SuiteSummary {
   startEquityUsd: number;
   endEquityUsd: number;
-  /** Equity delta (mark-to-market) for this run; not used for sweep. */
   pnlUsd: number;
-  /** Realized PnL delta for this run; use for sweep. */
   realizedPnlUsd: number;
-  /** Unrealized PnL at end of run (for reporting). */
   unrealizedPnlUsd: number;
   maxDrawdownPct: number;
   tradeCount: number;
   feesTotalUsd: number;
+  maker_trades: number;
+  taker_trades: number;
+  maker_fees_usd: number;
+  taker_fees_usd: number;
 }
 
 export async function runSuite(
@@ -34,6 +35,10 @@ export async function runSuite(
   let maxDrawdownPct = 0;
   let tradeCount = 0;
   let feesTotalUsd = 0;
+  let maker_trades = 0;
+  let taker_trades = 0;
+  let maker_fees_usd = 0;
+  let taker_fees_usd = 0;
 
   simState.suite = {
     running: true,
@@ -84,8 +89,17 @@ export async function runSuite(
   for (const ev of events) {
     if (ev.type === "ORDER_FILLED") {
       tradeCount++;
-      const d = ev.data as { feeUsd?: number };
-      if (typeof d?.feeUsd === "number") feesTotalUsd += d.feeUsd;
+      const d = ev.data as { feeUsd?: number; fee_usd?: number; liquidity?: "maker" | "taker" };
+      const fee = typeof d?.feeUsd === "number" ? d.feeUsd : typeof d?.fee_usd === "number" ? d.fee_usd : 0;
+      feesTotalUsd += fee;
+      const liq = d?.liquidity === "maker" ? "maker" : "taker";
+      if (liq === "maker") {
+        maker_trades++;
+        maker_fees_usd += fee;
+      } else {
+        taker_trades++;
+        taker_fees_usd += fee;
+      }
     }
   }
 
@@ -98,6 +112,10 @@ export async function runSuite(
     maxDrawdownPct,
     tradeCount,
     feesTotalUsd,
+    maker_trades,
+    taker_trades,
+    maker_fees_usd,
+    taker_fees_usd,
   };
 
   simState.suite = { ...simState.suite!, running: false };

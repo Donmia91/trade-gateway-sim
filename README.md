@@ -86,7 +86,7 @@ Time-series metrics are written every `SNAPSHOT_EVERY_MS` (default 5s) into the 
 - **Paper mode** is ON by default; no real orders. **MockBroker only** in v1.1.
 - **Kill switch** is ON by default; strategy is blocked until you hit “Unkill”.
 - **TRADING_ENABLED** remains false; no live broker, no keys, no private endpoints.
-- Config via `.env.local`: `PAPER_MODE`, `KILL_SWITCH`, `DATA_SOURCE`, `LIVE_PAIR`, `SNAPSHOT_EVERY_MS`, `TICK_LOG_EVERY_N`, `KRAKEN_WS_URL`, `COINBASE_WS_URL`, etc.
+- Config via `.env.local`: `PAPER_MODE`, `KILL_SWITCH`, `DATA_SOURCE`, `LIVE_PAIR`, `SNAPSHOT_EVERY_MS`, `TICK_LOG_EVERY_N`, `KRAKEN_WS_URL`, `COINBASE_WS_URL`, `KRAKEN_30D_VOLUME_USD` (30-day volume USD for Kraken tiered fees; default 0), etc.
 
 ## Event types (ledger)
 

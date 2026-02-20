@@ -142,6 +142,35 @@ export async function addLedgerEntry(entry: LedgerEntryInput): Promise<void> {
   );
 }
 
+/** Record a fee as FEE_USD (negative delta). Note can include tier label. Do not mutate balances. */
+export async function addFeeUsd(
+  runId: string,
+  feeUsd: number,
+  note?: string | null
+): Promise<void> {
+  const value = Number.isFinite(feeUsd) ? feeUsd : 0;
+  if (value <= 0) return;
+  await addLedgerEntry({
+    run_id: runId,
+    type: "FEE_USD",
+    currency: "USD",
+    delta: -value,
+    note: note ?? `Kraken fee run ${runId}`,
+  });
+}
+
+/** Sum of FEE_USD ledger entries (absolute delta) in the last 24 hours. */
+export async function getCumulativeFeesUsdLast24h(): Promise<number> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(ABS(delta)), 0) AS total FROM ledger_entries WHERE type = 'FEE_USD' AND ts >= ?`
+    )
+    .get(since) as { total: number } | undefined;
+  return row != null && Number.isFinite(row.total) ? row.total : 0;
+}
+
 export interface SweepResult {
   before: number;
   after: number;

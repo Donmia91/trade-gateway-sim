@@ -107,11 +107,21 @@ async function main(): Promise<void> {
   });
   insertEodEvent(runId, "info", "EOD run started", startedAt);
 
+  const { config: appConfig } = await import("../src/lib/config");
+  const { pickKrakenTier } = await import("../src/lib/fees/krakenFees");
+  const volume_30d_usd_used = appConfig.KRAKEN_30D_VOLUME_USD ?? 0;
+  const fee_tier_label_used = pickKrakenTier(volume_30d_usd_used).label;
+
   let summary: {
     tradeCount: number;
     pnlUsd: number;
     realizedPnlUsd: number;
     unrealizedPnlUsd: number;
+    feesTotalUsd: number;
+    maker_trades: number;
+    taker_trades: number;
+    maker_fees_usd: number;
+    taker_fees_usd: number;
   };
   let errorCount = 0;
 
@@ -123,30 +133,52 @@ async function main(): Promise<void> {
         : { mode: s.mode as "KRAKEN_PUBLIC" | "COINBASE_PUBLIC", durationSec: s.durationSec }
     );
     const result = await runSuite(plan, config.tickMs);
+    const s = result.summary;
     summary = {
-      tradeCount: result.summary.tradeCount,
-      pnlUsd: result.summary.pnlUsd,
-      realizedPnlUsd: result.summary.realizedPnlUsd,
-      unrealizedPnlUsd: result.summary.unrealizedPnlUsd,
+      tradeCount: s.tradeCount,
+      pnlUsd: s.pnlUsd,
+      realizedPnlUsd: s.realizedPnlUsd,
+      unrealizedPnlUsd: s.unrealizedPnlUsd,
+      feesTotalUsd: s.feesTotalUsd,
+      maker_trades: s.maker_trades,
+      taker_trades: s.taker_trades,
+      maker_fees_usd: s.maker_fees_usd,
+      taker_fees_usd: s.taker_fees_usd,
     };
   } catch (e) {
     errorCount = 1;
-    summary = { tradeCount: 0, pnlUsd: 0, realizedPnlUsd: 0, unrealizedPnlUsd: 0 };
+    summary = {
+      tradeCount: 0,
+      pnlUsd: 0,
+      realizedPnlUsd: 0,
+      unrealizedPnlUsd: 0,
+      feesTotalUsd: 0,
+      maker_trades: 0,
+      taker_trades: 0,
+      maker_fees_usd: 0,
+      taker_fees_usd: 0,
+    };
     insertEodEvent(runId, "error", e instanceof Error ? e.message : String(e));
   }
 
   const trade_count = summary.tradeCount;
   const realized_pnl_usd = summary.realizedPnlUsd;
+  const fees_usd = summary.feesTotalUsd;
   const unrealized_pnl_usd = summary.unrealizedPnlUsd;
   const equity_delta_usd = summary.pnlUsd;
 
   insertEodMetric(runId, "trade_count", trade_count);
   insertEodMetric(runId, "realized_pnl_usd", realized_pnl_usd);
+  insertEodMetric(runId, "fees_usd", fees_usd);
+  insertEodMetric(runId, "maker_count", summary.maker_trades);
+  insertEodMetric(runId, "taker_count", summary.taker_trades);
+  insertEodMetric(runId, "volume_30d_usd_used", volume_30d_usd_used);
   insertEodMetric(runId, "equity_delta_usd", equity_delta_usd);
   insertEodMetric(runId, "unrealized_pnl_usd", unrealized_pnl_usd);
   insertEodMetric(runId, "error_count", errorCount);
 
-  const { applySweep } = await import("../src/lib/ledger");
+  const { applySweep, addFeeUsd } = await import("../src/lib/ledger");
+  await addFeeUsd(runId, fees_usd, `Kraken fee ${fee_tier_label_used} maker|taker`);
   const sweep = await applySweep(runId, realized_pnl_usd);
   insertEodMetric(runId, "usd_balance_before", sweep.before);
   insertEodMetric(runId, "usd_balance_after", sweep.after);
@@ -178,6 +210,11 @@ async function main(): Promise<void> {
     metrics: {
       trade_count,
       realized_pnl_usd,
+      fees_usd,
+      maker_count: summary.maker_trades,
+      taker_count: summary.taker_trades,
+      volume_30d_usd_used,
+      fee_tier_label_used,
       equity_delta_usd,
       unrealized_pnl_usd,
       pnl_usd_is_equity_delta: true,
@@ -212,10 +249,12 @@ async function main(): Promise<void> {
     "",
     "## Metrics",
     `- trade_count: ${trade_count}`,
-    `- realized_pnl_usd: ${realized_pnl_usd} (used for sweep only)`,
+    `- realized_pnl_usd: ${realized_pnl_usd} (net of fees, used for sweep)`,
+    `- fees_usd: ${fees_usd}`,
+    `- maker_count: ${summary.maker_trades} | taker_count: ${summary.taker_trades}`,
+    `- volume_30d_usd_used: ${volume_30d_usd_used} | fee_tier_label_used: ${fee_tier_label_used}`,
     `- equity_delta_usd: ${equity_delta_usd} (not used for sweep)`,
     `- unrealized_pnl_usd: ${unrealized_pnl_usd}`,
-    `- pnl_usd_is_equity_delta: true (equity delta not used for sweep)`,
     `- error_count: ${errorCount}`,
     `- usd_balance_before: ${sweep.before}`,
     `- usd_balance_after: ${sweep.after}`,
@@ -232,9 +271,11 @@ async function main(): Promise<void> {
   const { getEvents } = await import("../src/lib/ledger");
   const events = getEvents(2000);
   const filled = events.filter((e) => e.type === "ORDER_FILLED");
-  const csvRows: string[] = ["ts,orderId,pair,side,qty,px,feeUsd"];
+  const csvRows: string[] = ["ts,orderId,pair,side,qty,px,is_maker,fee_usd,fee_rate_bps,fee_tier_label"];
   for (const e of filled) {
-    const d = e.data as { ts?: number; orderId?: string; pair?: string; side?: string; qty?: number; px?: number; feeUsd?: number };
+    const d = e.data as { ts?: number; orderId?: string; pair?: string; side?: string; qty?: number; px?: number; feeUsd?: number; fee_usd?: number; is_maker?: boolean; liquidity?: string; fee_rate_bps?: number; fee_tier_label?: string };
+    const fee = d?.feeUsd ?? d?.fee_usd ?? "";
+    const is_maker = d?.is_maker === true || d?.liquidity === "maker";
     csvRows.push(
       [
         d?.ts ?? "",
@@ -243,7 +284,10 @@ async function main(): Promise<void> {
         d?.side ?? "",
         d?.qty ?? "",
         d?.px ?? "",
-        d?.feeUsd ?? "",
+        is_maker ? "1" : "0",
+        fee,
+        d?.fee_rate_bps ?? "",
+        d?.fee_tier_label ?? "",
       ].join(",")
     );
   }

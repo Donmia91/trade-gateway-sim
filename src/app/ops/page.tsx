@@ -16,24 +16,57 @@ interface RunRow {
   pnl_usd: number;
   trades: number;
   errors: number;
+  fees_usd: number;
+  maker_count: number;
+  taker_count: number;
   swept_to_usd: number;
   usd_balance_after: number;
+}
+
+interface KrakenTicker {
+  pair: string;
+  last: number;
+  bid: number;
+  ask: number;
+  ts: string;
 }
 
 export default function OpsPage() {
   const [balance, setBalance] = useState<Balance | null>(null);
   const [runs, setRuns] = useState<RunRow[]>([]);
+  const [cumulativeFees24h, setCumulativeFees24h] = useState<number>(0);
+  const [ticker, setTicker] = useState<KrakenTicker | null>(null);
+  const [tickerError, setTickerError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   function refresh() {
     setLoading(true);
+    setTickerError(false);
     Promise.all([
       fetch("/api/ops/balance")
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => (data != null ? setBalance(data as Balance) : null)),
       fetch("/api/ops/runs?limit=10")
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data) => setRuns(Array.isArray(data) ? (data as RunRow[]) : [])),
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data != null && typeof data === "object" && "runs" in data) {
+            const obj = data as { runs: RunRow[]; cumulative_fees_usd_24h?: number };
+            setRuns(Array.isArray(obj.runs) ? obj.runs : []);
+            setCumulativeFees24h(typeof obj.cumulative_fees_usd_24h === "number" ? obj.cumulative_fees_usd_24h : 0);
+          } else {
+            setRuns(Array.isArray(data) ? (data as RunRow[]) : []);
+          }
+        }),
+      fetch("/api/kraken/ticker")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data != null && typeof data.last === "number" && typeof data.bid === "number" && typeof data.ask === "number") {
+            setTicker(data as KrakenTicker);
+          } else {
+            setTickerError(true);
+          }
+        })
+        .catch(() => setTickerError(true)),
     ])
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -78,6 +111,34 @@ export default function OpsPage() {
                   </div>
                 </div>
               </div>
+              <div className="col-12 col-md-6">
+                <div className="card">
+                  <h3>Cumulative fees (24h)</h3>
+                  <div className="metric">
+                    <span>${cumulativeFees24h.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="row">
+              <div className="col-12 col-md-6">
+                <div className="card">
+                  <h3>Kraken BTC/USD</h3>
+                  {tickerError || ticker == null ? (
+                    <div className="metric">
+                      <span className="muted">Unavailable</span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "14px" }}>
+                      <div>Last: ${ticker.last.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div>Bid: ${ticker.bid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Ask: ${ticker.ask.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div className="muted" style={{ fontSize: "12px", marginTop: "4px" }}>
+                        {ticker.ts ? new Date(ticker.ts).toLocaleString() : ""}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="row">
               <div className="col-12">
@@ -92,14 +153,16 @@ export default function OpsPage() {
                           <th>PnL (USD)</th>
                           <th>Trades</th>
                           <th>Errors</th>
-                          <th>Swept to USD</th>
+                          <th>Fees</th>
+                          <th>Maker / Taker</th>
+                          <th>Swept</th>
                           <th>USD after</th>
                         </tr>
                       </thead>
                       <tbody>
                         {runs.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="muted">
+                            <td colSpan={9} className="muted">
                               No EOD runs yet. Run <code>pnpm eod:smoke</code> or{" "}
                               <code>pnpm eod</code>.
                             </td>
@@ -116,8 +179,10 @@ export default function OpsPage() {
                               <td>${r.pnl_usd.toFixed(2)}</td>
                               <td>{r.trades}</td>
                               <td>{r.errors}</td>
-                              <td>${r.swept_to_usd.toFixed(2)}</td>
-                              <td>${r.usd_balance_after.toFixed(2)}</td>
+                              <td>${(r.fees_usd ?? 0).toFixed(2)}</td>
+                              <td>{(r.maker_count ?? 0)} / {(r.taker_count ?? 0)}</td>
+                              <td>${(r.swept_to_usd ?? 0).toFixed(2)}</td>
+                              <td>${(r.usd_balance_after ?? 0).toFixed(2)}</td>
                             </tr>
                           ))
                         )}

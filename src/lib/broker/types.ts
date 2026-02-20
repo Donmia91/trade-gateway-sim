@@ -19,6 +19,10 @@ export interface Fill {
   qty: number;
   px: number;
   feeUsd: number;
+  /** maker = adds liquidity; taker = removes (market or crossing limit) */
+  liquidity?: "maker" | "taker";
+  fee_rate_bps?: number;
+  fee_tier_label?: string;
   ts: number;
 }
 
