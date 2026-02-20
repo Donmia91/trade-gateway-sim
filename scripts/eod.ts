@@ -4,7 +4,7 @@
  *   pnpm eod                    # --config configs/daily.json
  *   pnpm eod:smoke              # --config configs/smoke.json
  *   pnpm eod:ci                 # --config configs/daily.json --ci
- * Options: --config <path>, --seed <number>, --ci
+ * Options: --config <path>, --seed <number>, --ci, --gates <path>
  */
 import fs from "fs";
 import path from "path";
@@ -12,8 +12,9 @@ import { execSync } from "child_process";
 import { randomBytes } from "crypto";
 
 const DEFAULT_CONFIG = "configs/daily.json";
-const OPS_GATES_PATH = "configs/ops-gates.json";
+const DEFAULT_GATES_PATH = "configs/ops-gates.json";
 const OUT_DIR = "out/eod";
+const LATEST_DIR = "latest";
 
 interface EodConfig {
   steps: Array<{ mode: string; scenario?: string; durationSec: number }>;
@@ -26,11 +27,17 @@ interface OpsGates {
   maxPnlUsd: number;
 }
 
-function parseArgv(): { configPath: string; seed: number | null; ci: boolean } {
+function parseArgv(): {
+  configPath: string;
+  seed: number | null;
+  ci: boolean;
+  gatesPath: string;
+} {
   const args = process.argv.slice(2);
   let configPath = path.join(process.cwd(), DEFAULT_CONFIG);
   let seed: number | null = null;
   let ci = false;
+  let gatesPath = path.join(process.cwd(), DEFAULT_GATES_PATH);
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--config" && args[i + 1]) {
       configPath = path.isAbsolute(args[i + 1]) ? args[i + 1] : path.join(process.cwd(), args[i + 1]);
@@ -41,9 +48,12 @@ function parseArgv(): { configPath: string; seed: number | null; ci: boolean } {
       i++;
     } else if (args[i] === "--ci") {
       ci = true;
+    } else if (args[i] === "--gates" && args[i + 1]) {
+      gatesPath = path.isAbsolute(args[i + 1]) ? args[i + 1] : path.join(process.cwd(), args[i + 1]);
+      i++;
     }
   }
-  return { configPath, seed, ci };
+  return { configPath, seed, ci, gatesPath };
 }
 
 function loadJson<T>(filePath: string): T {
@@ -66,7 +76,7 @@ function getGitSha(): string {
 }
 
 async function main(): Promise<void> {
-  const { configPath, seed, ci } = parseArgv();
+  const { configPath, seed, ci, gatesPath } = parseArgv();
 
   if (!fs.existsSync(configPath)) {
     console.error("EOD config not found:", configPath);
@@ -142,7 +152,6 @@ async function main(): Promise<void> {
   insertEodMetric(runId, "usd_balance_after", sweep.after);
   insertEodMetric(runId, "swept_to_usd", sweep.swept);
 
-  const gatesPath = path.join(process.cwd(), OPS_GATES_PATH);
   const gatesConfig = fs.existsSync(gatesPath)
     ? loadJson<OpsGates>(gatesPath)
     : { minTrades: 1, minPnlUsd: 0, maxPnlUsd: 999999 };
@@ -242,6 +251,12 @@ async function main(): Promise<void> {
     csvRows.push("# No trades in this run");
   }
   fs.writeFileSync(path.join(outRunDir, "trades.csv"), csvRows.join("\n"), "utf-8");
+
+  const latestDir = path.join(process.cwd(), OUT_DIR, LATEST_DIR);
+  fs.mkdirSync(latestDir, { recursive: true });
+  for (const name of ["summary.json", "report.md", "trades.csv"]) {
+    fs.copyFileSync(path.join(outRunDir, name), path.join(latestDir, name));
+  }
 
   if (!ci) {
     console.log(`EOD ${status} — runId ${runId}`);
