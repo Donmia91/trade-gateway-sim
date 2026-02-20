@@ -142,6 +142,37 @@ export async function addLedgerEntry(entry: LedgerEntryInput): Promise<void> {
   );
 }
 
+/** Record a fee as FEE_USD (negative delta). Optional liquidity for maker/taker breakdown (stored in note). */
+export async function addFeeUsd(
+  runId: string,
+  feeUsd: number,
+  note?: string | null,
+  liquidity?: "maker" | "taker"
+): Promise<void> {
+  const value = Number.isFinite(feeUsd) ? feeUsd : 0;
+  if (value <= 0) return;
+  const noteStr = [note ?? `Fees run ${runId}`, liquidity ? ` (${liquidity})` : ""].join("");
+  await addLedgerEntry({
+    run_id: runId,
+    type: "FEE_USD",
+    currency: "USD",
+    delta: -value,
+    note: noteStr,
+  });
+}
+
+/** Sum of FEE_USD ledger entries (absolute delta) in the last 24 hours. */
+export async function getCumulativeFeesUsdLast24h(): Promise<number> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(ABS(delta)), 0) AS total FROM ledger_entries WHERE type = 'FEE_USD' AND ts >= ?`
+    )
+    .get(since) as { total: number } | undefined;
+  return row != null && Number.isFinite(row.total) ? row.total : 0;
+}
+
 export interface SweepResult {
   before: number;
   after: number;

@@ -34,4 +34,6 @@ export const config = {
   SUITE_DEFAULT: envBool("SUITE_DEFAULT", true),
   KRAKEN_WS_URL: envStr("KRAKEN_WS_URL", "wss://ws.kraken.com/v2"),
   COINBASE_WS_URL: envStr("COINBASE_WS_URL", "wss://advanced-trade-ws.coinbase.com"),
+  MAKER_FEE_RATE: envNum("MAKER_FEE_RATE", 0.0025),
+  TAKER_FEE_RATE: envNum("TAKER_FEE_RATE", 0.004),
 } as const;

@@ -19,6 +19,8 @@ export interface Fill {
   qty: number;
   px: number;
   feeUsd: number;
+  /** "maker" | "taker" for liquidity / fee breakdown */
+  liquidity?: "maker" | "taker";
   ts: number;
 }
 

@@ -42,6 +42,23 @@ async function main() {
   amount = await ledger.getBalance("USD");
   assert.strictEqual(amount, 10, "USD unchanged at 10");
 
+  // FEE_USD ledger entries and cumulative 24h
+  const runIdFee = "sweep-test-run-fee";
+  await ledger.addFeeUsd(runIdFee, 2.5, "test fee", "taker");
+  const entriesAfter = await ledger.getLedgerEntries(50);
+  const feeEntries = entriesAfter.filter((e) => e.type === "FEE_USD" && e.run_id === runIdFee);
+  assert(feeEntries.length >= 1, "at least one FEE_USD entry");
+  assert.strictEqual(feeEntries[0].delta, -2.5, "FEE_USD delta is negative fee amount");
+  const cumulative24h = await ledger.getCumulativeFeesUsdLast24h();
+  assert(cumulative24h >= 2.5, "cumulative fees (24h) includes FEE_USD total");
+
+  // Sweep uses net realized after fees (only positive net is swept)
+  const runId4 = "sweep-test-run-4";
+  const r4 = await ledger.applySweep(runId4, 8);
+  assert.strictEqual(r4.swept, 8, "sweep uses net amount (8) not gross");
+  amount = await ledger.getBalance("USD");
+  assert.strictEqual(amount, 18, "USD is 10 + 8 after net sweep");
+
   console.log("sweep.test.ts: all assertions passed");
 }
 

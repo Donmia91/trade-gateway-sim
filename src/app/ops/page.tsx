@@ -16,6 +16,12 @@ interface RunRow {
   pnl_usd: number;
   trades: number;
   errors: number;
+  fees_usd: number;
+  net_realized_usd: number;
+  maker_trades: number;
+  taker_trades: number;
+  maker_fees_usd: number;
+  taker_fees_usd: number;
   swept_to_usd: number;
   usd_balance_after: number;
 }
@@ -23,6 +29,7 @@ interface RunRow {
 export default function OpsPage() {
   const [balance, setBalance] = useState<Balance | null>(null);
   const [runs, setRuns] = useState<RunRow[]>([]);
+  const [cumulativeFees24h, setCumulativeFees24h] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   function refresh() {
@@ -32,8 +39,15 @@ export default function OpsPage() {
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => (data != null ? setBalance(data as Balance) : null)),
       fetch("/api/ops/runs?limit=10")
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data) => setRuns(Array.isArray(data) ? (data as RunRow[]) : [])),
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data != null && typeof data === "object" && "runs" in data) {
+            setRuns(Array.isArray((data as { runs: RunRow[] }).runs) ? (data as { runs: RunRow[] }).runs : []);
+            setCumulativeFees24h(typeof (data as { cumulative_fees_usd_24h?: number }).cumulative_fees_usd_24h === "number" ? (data as { cumulative_fees_usd_24h: number }).cumulative_fees_usd_24h : 0);
+          } else {
+            setRuns(Array.isArray(data) ? (data as RunRow[]) : []);
+          }
+        }),
     ])
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -78,6 +92,14 @@ export default function OpsPage() {
                   </div>
                 </div>
               </div>
+              <div className="col-12 col-md-6">
+                <div className="card">
+                  <h3>Cumulative fees (24h)</h3>
+                  <div className="metric">
+                    <span>${cumulativeFees24h.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="row">
               <div className="col-12">
@@ -92,14 +114,17 @@ export default function OpsPage() {
                           <th>PnL (USD)</th>
                           <th>Trades</th>
                           <th>Errors</th>
-                          <th>Swept to USD</th>
+                          <th>Fees</th>
+                          <th>Net</th>
+                          <th>Maker / Taker</th>
+                          <th>Swept</th>
                           <th>USD after</th>
                         </tr>
                       </thead>
                       <tbody>
                         {runs.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="muted">
+                            <td colSpan={10} className="muted">
                               No EOD runs yet. Run <code>pnpm eod:smoke</code> or{" "}
                               <code>pnpm eod</code>.
                             </td>
@@ -116,8 +141,11 @@ export default function OpsPage() {
                               <td>${r.pnl_usd.toFixed(2)}</td>
                               <td>{r.trades}</td>
                               <td>{r.errors}</td>
-                              <td>${r.swept_to_usd.toFixed(2)}</td>
-                              <td>${r.usd_balance_after.toFixed(2)}</td>
+                              <td>${(r.fees_usd ?? 0).toFixed(2)}</td>
+                              <td>${(r.net_realized_usd ?? r.pnl_usd).toFixed(2)}</td>
+                              <td>{r.maker_trades ?? 0} / {r.taker_trades ?? 0}</td>
+                              <td>${(r.swept_to_usd ?? 0).toFixed(2)}</td>
+                              <td>${(r.usd_balance_after ?? 0).toFixed(2)}</td>
                             </tr>
                           ))
                         )}

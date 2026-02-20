@@ -1,7 +1,9 @@
 import type { BookTop, Fill, Order, Pair, Side } from "./types";
 import { nowMs } from "../time";
+import { config } from "../config";
 
-const FEE_RATE = 0.0026; // 0.26%
+const MAKER_FEE_RATE = config.MAKER_FEE_RATE;
+const TAKER_FEE_RATE = config.TAKER_FEE_RATE;
 const DEFAULT_PAIR: Pair = "XRP/USD";
 
 let orderIdCounter = 0;
@@ -69,7 +71,8 @@ export class MockBroker {
           ? top.ask * slippage
           : top.bid / slippage;
       const notional = full.qty * fillPx;
-      const feeUsd = notional * FEE_RATE;
+      const liquidity: "maker" | "taker" = "taker";
+      const feeUsd = notional * TAKER_FEE_RATE;
 
       if (full.side === "buy") {
         const cost = notional + feeUsd;
@@ -93,6 +96,7 @@ export class MockBroker {
         qty: full.qty,
         px: fillPx,
         feeUsd,
+        liquidity,
         ts: nowMs(),
       };
       this.fillsQueue.push(fill);
@@ -111,25 +115,30 @@ export class MockBroker {
     for (const order of [...this.openOrders]) {
       if (order.type !== "limit" || order.limitPx === undefined) continue;
       let fillPx: number;
+      let liquidity: "maker" | "taker";
       if (order.side === "buy" && top.ask <= order.limitPx) {
         fillPx = Math.min(top.ask * slippage, order.limitPx);
+        liquidity = top.ask < order.limitPx ? "maker" : "taker";
       } else if (order.side === "sell" && top.bid >= order.limitPx) {
         fillPx = Math.max(top.bid / slippage, order.limitPx);
+        liquidity = order.limitPx > top.bid ? "maker" : "taker";
       } else continue;
 
+      const notional = order.qty * fillPx;
+      const feeRate = liquidity === "maker" ? MAKER_FEE_RATE : TAKER_FEE_RATE;
+      const feeUsd = notional * feeRate;
+
       if (order.side === "buy") {
-        const cost = order.qty * fillPx * (1 + FEE_RATE);
+        const cost = notional + feeUsd;
         if (this.balances.USD < cost) continue;
         this.balances.USD -= cost;
         this.balances.XRP += order.qty;
       } else {
         if (this.balances.XRP < order.qty) continue;
         this.balances.XRP -= order.qty;
-        const notional = order.qty * fillPx;
-        this.balances.USD += notional * (1 - FEE_RATE);
+        this.balances.USD += notional - feeUsd;
       }
 
-      const feeUsd = order.qty * fillPx * FEE_RATE;
       this.fillsQueue.push({
         orderId: order.id,
         pair: order.pair,
@@ -137,6 +146,7 @@ export class MockBroker {
         qty: order.qty,
         px: fillPx,
         feeUsd,
+        liquidity,
         ts: nowMs(),
       });
       this.openOrders = this.openOrders.filter((o) => o.id !== order.id);

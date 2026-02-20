@@ -41,7 +41,9 @@ function applyFillsToPositionAndPnl(): void {
       side: f.side,
       qty: f.qty,
       px: f.px,
+      fee_usd: f.feeUsd,
       feeUsd: f.feeUsd,
+      liquidity: f.liquidity,
       ts: f.ts,
     });
     if (f.side === "buy") {

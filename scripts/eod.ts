@@ -112,6 +112,11 @@ async function main(): Promise<void> {
     pnlUsd: number;
     realizedPnlUsd: number;
     unrealizedPnlUsd: number;
+    fees_usd_total: number;
+    maker_trades: number;
+    taker_trades: number;
+    maker_fees_usd: number;
+    taker_fees_usd: number;
   };
   let errorCount = 0;
 
@@ -123,31 +128,57 @@ async function main(): Promise<void> {
         : { mode: s.mode as "KRAKEN_PUBLIC" | "COINBASE_PUBLIC", durationSec: s.durationSec }
     );
     const result = await runSuite(plan, config.tickMs);
+    const s = result.summary;
     summary = {
-      tradeCount: result.summary.tradeCount,
-      pnlUsd: result.summary.pnlUsd,
-      realizedPnlUsd: result.summary.realizedPnlUsd,
-      unrealizedPnlUsd: result.summary.unrealizedPnlUsd,
+      tradeCount: s.tradeCount,
+      pnlUsd: s.pnlUsd,
+      realizedPnlUsd: s.realizedPnlUsd,
+      unrealizedPnlUsd: s.unrealizedPnlUsd,
+      fees_usd_total: s.fees_usd_total,
+      maker_trades: s.maker_trades,
+      taker_trades: s.taker_trades,
+      maker_fees_usd: s.maker_fees_usd,
+      taker_fees_usd: s.taker_fees_usd,
     };
   } catch (e) {
     errorCount = 1;
-    summary = { tradeCount: 0, pnlUsd: 0, realizedPnlUsd: 0, unrealizedPnlUsd: 0 };
+    summary = {
+      tradeCount: 0,
+      pnlUsd: 0,
+      realizedPnlUsd: 0,
+      unrealizedPnlUsd: 0,
+      fees_usd_total: 0,
+      maker_trades: 0,
+      taker_trades: 0,
+      maker_fees_usd: 0,
+      taker_fees_usd: 0,
+    };
     insertEodEvent(runId, "error", e instanceof Error ? e.message : String(e));
   }
 
   const trade_count = summary.tradeCount;
   const realized_pnl_usd = summary.realizedPnlUsd;
+  const fees_usd_total = summary.fees_usd_total;
+  /** In this sim realized_pnl_usd is already net of fees; use for sweep. */
+  const net_realized_after_fees_usd = realized_pnl_usd;
   const unrealized_pnl_usd = summary.unrealizedPnlUsd;
   const equity_delta_usd = summary.pnlUsd;
 
   insertEodMetric(runId, "trade_count", trade_count);
   insertEodMetric(runId, "realized_pnl_usd", realized_pnl_usd);
+  insertEodMetric(runId, "fees_usd_total", fees_usd_total);
+  insertEodMetric(runId, "net_realized_after_fees_usd", net_realized_after_fees_usd);
+  insertEodMetric(runId, "maker_trades", summary.maker_trades);
+  insertEodMetric(runId, "taker_trades", summary.taker_trades);
+  insertEodMetric(runId, "maker_fees_usd", summary.maker_fees_usd);
+  insertEodMetric(runId, "taker_fees_usd", summary.taker_fees_usd);
   insertEodMetric(runId, "equity_delta_usd", equity_delta_usd);
   insertEodMetric(runId, "unrealized_pnl_usd", unrealized_pnl_usd);
   insertEodMetric(runId, "error_count", errorCount);
 
-  const { applySweep } = await import("../src/lib/ledger");
-  const sweep = await applySweep(runId, realized_pnl_usd);
+  const { applySweep, addFeeUsd } = await import("../src/lib/ledger");
+  await addFeeUsd(runId, fees_usd_total, `EOD run ${runId}`);
+  const sweep = await applySweep(runId, net_realized_after_fees_usd);
   insertEodMetric(runId, "usd_balance_before", sweep.before);
   insertEodMetric(runId, "usd_balance_after", sweep.after);
   insertEodMetric(runId, "swept_to_usd", sweep.swept);
@@ -178,8 +209,14 @@ async function main(): Promise<void> {
     metrics: {
       trade_count,
       realized_pnl_usd,
+      fees_usd_total,
+      net_realized_after_fees_usd,
       equity_delta_usd,
       unrealized_pnl_usd,
+      maker_trades: summary.maker_trades,
+      taker_trades: summary.taker_trades,
+      maker_fees_usd: summary.maker_fees_usd,
+      taker_fees_usd: summary.taker_fees_usd,
       pnl_usd_is_equity_delta: true,
       error_count: errorCount,
       usd_balance_before: sweep.before,
@@ -232,9 +269,10 @@ async function main(): Promise<void> {
   const { getEvents } = await import("../src/lib/ledger");
   const events = getEvents(2000);
   const filled = events.filter((e) => e.type === "ORDER_FILLED");
-  const csvRows: string[] = ["ts,orderId,pair,side,qty,px,feeUsd"];
+  const csvRows: string[] = ["ts,orderId,pair,side,qty,px,fee_usd,liquidity"];
   for (const e of filled) {
-    const d = e.data as { ts?: number; orderId?: string; pair?: string; side?: string; qty?: number; px?: number; feeUsd?: number };
+    const d = e.data as { ts?: number; orderId?: string; pair?: string; side?: string; qty?: number; px?: number; feeUsd?: number; fee_usd?: number; liquidity?: string };
+    const fee = d?.feeUsd ?? d?.fee_usd ?? "";
     csvRows.push(
       [
         d?.ts ?? "",
@@ -243,7 +281,8 @@ async function main(): Promise<void> {
         d?.side ?? "",
         d?.qty ?? "",
         d?.px ?? "",
-        d?.feeUsd ?? "",
+        fee,
+        d?.liquidity ?? "",
       ].join(",")
     );
   }
