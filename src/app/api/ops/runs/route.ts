@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEodRuns, getEodMetrics } from "@/lib/eodDb";
+import { getEodRuns, getEodMetrics, getTotalFeesUsdFromMetrics } from "@/lib/eodDb";
 import { getCumulativeFeesUsdLast24h } from "@/lib/ledger";
 
 export async function GET(request: Request) {
@@ -27,8 +27,12 @@ export async function GET(request: Request) {
         usd_balance_after: m.usd_balance_after ?? 0,
       };
     });
-    const cumulative_fees_usd_24h = await getCumulativeFeesUsdLast24h();
-    return NextResponse.json({ runs: out, cumulative_fees_usd_24h });
+    const fromMetrics = getTotalFeesUsdFromMetrics();
+    const cumulative_fees_usd =
+      Number.isFinite(fromMetrics) && fromMetrics > 0
+        ? fromMetrics
+        : await getCumulativeFeesUsdLast24h();
+    return NextResponse.json({ runs: out, cumulative_fees_usd_24h: cumulative_fees_usd });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : String(e) },

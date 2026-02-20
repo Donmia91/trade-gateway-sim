@@ -1,6 +1,6 @@
 /**
  * Kraken Pro spot fee tiers by 30-day volume (USD).
- * Ref: https://www.kraken.com/features/fee-schedule (Spot Crypto)
+ * Ref: https://www.kraken.com/features/fee-schedule
  */
 
 export interface FeeTier {
@@ -44,4 +44,17 @@ export function calcFeeUsd(
   const rateBps = isMaker ? tier.makerBps : tier.takerBps;
   const feeUsd = notionalUsd * (rateBps / 10_000);
   return { feeUsd, tier, rateBps };
+}
+
+export function calcKrakenFeeUsd(params: {
+  notionalUsd: number;
+  isMaker: boolean;
+  volume30dUsd: number;
+}): { feeUsd: number; tierLabel: string; rateBps: number } {
+  const { feeUsd, tier, rateBps } = calcFeeUsd(
+    params.notionalUsd,
+    params.isMaker,
+    params.volume30dUsd
+  );
+  return { feeUsd, tierLabel: tier.label, rateBps };
 }

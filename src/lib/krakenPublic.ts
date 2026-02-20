@@ -4,7 +4,7 @@
  */
 
 const TICKER_URL = "https://api.kraken.com/0/public/Ticker?pair=XBTUSD";
-const TIMEOUT_MS = 5000;
+const TIMEOUT_MS = 4000;
 
 export type KrakenTicker = {
   pair: "XBTUSD";
@@ -28,7 +28,7 @@ function toNum(value: unknown): number {
 }
 
 /**
- * Fetch Kraken BTC/USD (XBTUSD) ticker. Uses AbortController with 5s timeout.
+ * Fetch Kraken BTC/USD (XBTUSD) ticker. Uses AbortController with 4s timeout.
  */
 export async function fetchKrakenTickerXbtUsd(): Promise<KrakenTicker> {
   const controller = new AbortController();

@@ -80,3 +80,12 @@ export function getEodMetrics(run_id: string): Record<string, number> {
   for (const r of rows) out[r.key] = r.value;
   return out;
 }
+
+/** Sum of fees_usd across all runs (eod_metrics). Prefer this for cumulative fees; fallback to ledger if needed. */
+export function getTotalFeesUsdFromMetrics(): number {
+  const db = getDb();
+  const row = db
+    .prepare("SELECT COALESCE(SUM(value), 0) AS total FROM eod_metrics WHERE key = ?")
+    .get("fees_usd") as { total: number } | undefined;
+  return row != null && Number.isFinite(row.total) ? row.total : 0;
+}
